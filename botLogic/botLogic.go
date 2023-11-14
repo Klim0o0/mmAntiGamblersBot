@@ -33,10 +33,12 @@ func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *
 
 func calculateDice(update tgbotapi.Update, cache *sqlCache.GamblingMessageCache, bot *tgbotapi.BotAPI) {
 	message := update.Message
+	now := time.Now().UTC()
 
 	messageInfo := getGamblingMessageInfo(message)
+
 	msg, ok := cache.Get(messageInfo)
-	now := time.Now().UTC()
+
 	if ok && msg.MessageDate.After(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())) {
 		log.Println("Уже есть")
 		_, _ = bot.Send(tgbotapi.NewDeleteMessage(messageInfo.ChatId, update.Message.MessageID))
