@@ -10,13 +10,16 @@ import (
 )
 
 func getGamblingMessageInfo(message *tgbotapi.Message) sqlCache.GamblingMessageInfo {
+	messageDate := time.Unix(int64(message.Date), 0).UTC()
+	messageDateOnly := time.Date(messageDate.Year(), messageDate.Month(), messageDate.Day(), 0, 0, 0, 0, time.Local)
+
 	return sqlCache.GamblingMessageInfo{
 		UserChatIndicator: sqlCache.UserChatIndicator{
 			UserId: message.From.ID,
 			ChatId: message.Chat.ID,
 			Emoji:  message.Dice.Emoji,
 		},
-		MessageDate: time.Unix(int64(message.Date), 0).UTC(),
+		MessageDate: messageDateOnly,
 		EmojiValue:  message.Dice.Value,
 	}
 }
@@ -33,16 +36,15 @@ func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *
 
 func calculateDice(update tgbotapi.Update, cache *sqlCache.GamblingMessageCache, bot *tgbotapi.BotAPI) {
 	message := update.Message
-	now := time.Now().UTC()
 
 	messageInfo := getGamblingMessageInfo(message)
 
 	msg, ok := cache.Get(messageInfo)
 
-	if ok && msg.MessageDate.After(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())) {
+	if ok && msg.MessageDate.After(messageInfo.MessageDate) {
 		log.Println("Уже есть")
 		_, _ = bot.Send(tgbotapi.NewDeleteMessage(messageInfo.ChatId, update.Message.MessageID))
-		//_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
+		_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
 		return
 	}
 

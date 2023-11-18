@@ -36,64 +36,16 @@ func CreateCache(conn *pgx.Conn, ctx context.Context) *GamblingMessageCache {
 	return cache
 }
 
-func (gamblingMessageCache *GamblingMessageCache) A(gamblingMessageInfo GamblingMessageInfo) bool {
-	gamblingMessageCache.rwMutex.RLock()
-
-	for k, _ := range gamblingMessageCache.cache {
-		if k.ChatId == gamblingMessageInfo.ChatId {
-			gamblingMessageCache.rwMutex.RUnlock()
-			return false
-		}
-	}
-
-	gamblingMessageCache.rwMutex.RUnlock()
-	return false
-}
-
-func (gamblingMessageCache *GamblingMessageCache) Get(gamblingMessageInfo GamblingMessageInfo) (GamblingMessageInfo, bool) {
-	date := time.Date(gamblingMessageInfo.MessageDate.Year(), gamblingMessageInfo.MessageDate.Month(), gamblingMessageInfo.MessageDate.Day(), 0, 0, 0, 0, time.Local)
-
-	gamblingMessageCache.rwMutexChats.Lock()
-	if _, ok := gamblingMessageCache.filedChats[gamblingMessageInfo.ChatId]; !ok {
-		gamblingMessageCache.FillChat(gamblingMessageInfo.ChatId, date)
-		gamblingMessageCache.filedChats[gamblingMessageInfo.ChatId] = struct{}{}
-	}
-	gamblingMessageCache.rwMutexChats.Unlock()
-
-	gamblingMessageCache.rwMutex.RLock()
-	msg, ok := gamblingMessageCache.cache[gamblingMessageInfo.UserChatIndicator]
-	gamblingMessageCache.rwMutex.RUnlock()
-	if ok {
-		if msg.MessageDate.Day() != gamblingMessageInfo.MessageDate.Day() {
-			return GamblingMessageInfo{}, false
-		}
-		return *msg, true
-	}
-
-	newMsg, ok := gamblingMessageCache.getMsg(gamblingMessageInfo.UserChatIndicator, date)
-	if ok {
-		gamblingMessageCache.rwMutex.Lock()
-		gamblingMessageCache.cache[gamblingMessageInfo.UserChatIndicator] = &newMsg
-		gamblingMessageCache.rwMutex.Unlock()
-	}
-	return newMsg, ok
-}
-func (gamblingMessageCache *GamblingMessageCache) Set(info GamblingMessageInfo) {
-	gamblingMessageCache.rwMutex.Lock()
-	gamblingMessageCache.cache[info.UserChatIndicator] = &info
-	gamblingMessageCache.rwMutex.Unlock()
-}
-
 func (gamblingMessageCache *GamblingMessageCache) startUpdateLoop() {
 	for {
 		select {
 		case <-time.After(120 * time.Second):
-			err := gamblingMessageCache.updateCache()
+			err := gamblingMessageCache.insertCache()
 			if err != nil {
 				log.Println(err)
 			}
 		case <-(*gamblingMessageCache.ctx).Done():
-			err := gamblingMessageCache.updateCache()
+			err := gamblingMessageCache.insertCache()
 			if err != nil {
 				log.Println(err)
 			}
@@ -103,7 +55,36 @@ func (gamblingMessageCache *GamblingMessageCache) startUpdateLoop() {
 	}
 }
 
-func (gamblingMessageCache *GamblingMessageCache) updateCache() error {
+func (gamblingMessageCache *GamblingMessageCache) Get(gamblingMessageInfo GamblingMessageInfo) (GamblingMessageInfo, bool) {
+	gamblingMessageCache.fillChatCacheIfNeed(gamblingMessageInfo.UserChatIndicator, gamblingMessageInfo.MessageDate)
+
+	gamblingMessageCache.rwMutex.RLock()
+	msg, ok := gamblingMessageCache.cache[gamblingMessageInfo.UserChatIndicator]
+	gamblingMessageCache.rwMutex.RUnlock()
+
+	if ok && !msg.MessageDate.After(gamblingMessageInfo.MessageDate) {
+		return *msg, true
+	}
+	return GamblingMessageInfo{}, false
+
+}
+
+func (gamblingMessageCache *GamblingMessageCache) Set(info GamblingMessageInfo) {
+	gamblingMessageCache.rwMutex.Lock()
+	gamblingMessageCache.cache[info.UserChatIndicator] = &info
+	gamblingMessageCache.rwMutex.Unlock()
+}
+
+func (gamblingMessageCache *GamblingMessageCache) fillChatCacheIfNeed(gamblingMessageInfo UserChatIndicator, date time.Time) {
+	gamblingMessageCache.rwMutexChats.Lock()
+	if _, ok := gamblingMessageCache.filedChats[gamblingMessageInfo.ChatId]; !ok {
+		gamblingMessageCache.fillChatCache(gamblingMessageInfo.ChatId, date)
+		gamblingMessageCache.filedChats[gamblingMessageInfo.ChatId] = struct{}{}
+	}
+	gamblingMessageCache.rwMutexChats.Unlock()
+}
+
+func (gamblingMessageCache *GamblingMessageCache) insertCache() error {
 	gamblingMessageCache.rwMutex.RLock()
 	messagesToUpdate := make([]GamblingMessageInfo, 0, len(gamblingMessageCache.cache))
 
@@ -115,12 +96,40 @@ func (gamblingMessageCache *GamblingMessageCache) updateCache() error {
 	}
 	gamblingMessageCache.rwMutex.RUnlock()
 
-	return gamblingMessageCache.insertMsg(messagesToUpdate)
+	return insertMsg(gamblingMessageCache.conn, messagesToUpdate)
 }
 
-func (gamblingMessageCache *GamblingMessageCache) insertMsg(messages []GamblingMessageInfo) error {
+func (gamblingMessageCache *GamblingMessageCache) fillChatCache(id int64, v time.Time) {
+	messages, _ := getLastChatMessages(gamblingMessageCache.conn, id, v)
 
-	_, err := gamblingMessageCache.conn.CopyFrom(context.Background(), pgx.Identifier{"tg_massages"}, []string{"userid", "chatid", "masagedate", "emoji", "emoji_value"},
+	gamblingMessageCache.rwMutex.Lock()
+	for i := range messages {
+		gamblingMessageCache.cache[messages[i].UserChatIndicator] = &messages[i]
+	}
+	gamblingMessageCache.rwMutex.Unlock()
+}
+
+func getLastChatMessages(conn *pgx.Conn, id int64, v time.Time) ([]GamblingMessageInfo, error) {
+	rows, err := conn.Query(context.Background(),
+		"select * from tg_massages where masageDate > $1 and chatId=$2", v, id)
+	defer rows.Close()
+
+	if err != nil {
+		return nil, err
+	}
+
+	gamblingMessageInfos, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (GamblingMessageInfo, error) {
+		var gamblingMessageInfo GamblingMessageInfo
+		err = rows.Scan(&gamblingMessageInfo.UserId, &gamblingMessageInfo.ChatId, &gamblingMessageInfo.MessageDate, &gamblingMessageInfo.Emoji, &gamblingMessageInfo.EmojiValue)
+		gamblingMessageInfo.updated = true
+		return gamblingMessageInfo, err
+	})
+	return gamblingMessageInfos, err
+}
+
+func insertMsg(conn *pgx.Conn, messages []GamblingMessageInfo) error {
+
+	_, err := conn.CopyFrom(context.Background(), pgx.Identifier{"tg_massages"}, []string{"userid", "chatid", "masagedate", "emoji", "emoji_value"},
 		pgx.CopyFromSlice(len(messages), func(i int) ([]any, error) {
 			return []any{messages[i].UserId, messages[i].ChatId, messages[i].MessageDate, messages[i].Emoji, messages[i].EmojiValue}, nil
 		}))
@@ -128,25 +137,9 @@ func (gamblingMessageCache *GamblingMessageCache) insertMsg(messages []GamblingM
 	return err
 }
 
-func (gamblingMessageCache *GamblingMessageCache) getMsg(indicator UserChatIndicator, date time.Time) (GamblingMessageInfo, bool) {
-	query, err := gamblingMessageCache.conn.Query(context.Background(),
-		"select * from tg_massages where userId=$1 and chatId=$2 and emoji = $3 and masageDate > $4",
-		indicator.UserId, indicator.ChatId, indicator.Emoji, date)
-	defer query.Close()
-	var gamblingMessageInfo GamblingMessageInfo
-	for query.Next() {
-		err = query.Scan(&gamblingMessageInfo.UserId, &gamblingMessageInfo.ChatId, &gamblingMessageInfo.MessageDate, &gamblingMessageInfo.Emoji, &gamblingMessageInfo.EmojiValue)
-		if err == nil {
-			gamblingMessageInfo.updated = true
-			return gamblingMessageInfo, true
-		}
-	}
-	return gamblingMessageInfo, false
-}
+func GetAll(conn *pgx.Conn) ([]GamblingMessageInfo, bool) {
 
-func (gamblingMessageCache *GamblingMessageCache) GetAll() ([]GamblingMessageInfo, bool) {
-
-	query, err := gamblingMessageCache.conn.Query(context.Background(),
+	query, err := conn.Query(context.Background(),
 		"select * from tg_massages")
 	defer query.Close()
 	gamblingMessageInfos := make([]GamblingMessageInfo, 0, 0)
@@ -161,23 +154,15 @@ func (gamblingMessageCache *GamblingMessageCache) GetAll() ([]GamblingMessageInf
 	return gamblingMessageInfos, true
 }
 
-func (gamblingMessageCache *GamblingMessageCache) FillChat(id int64, v time.Time) {
-	query, err := gamblingMessageCache.conn.Query(context.Background(),
-		"select * from tg_massages where  masageDate > $1 and chatId=$2", v, id)
-	defer query.Close()
-	gamblingMessageInfos := make([]GamblingMessageInfo, 0, 100)
-	for query.Next() {
-		var gamblingMessageInfo GamblingMessageInfo
-		err = query.Scan(&gamblingMessageInfo.UserId, &gamblingMessageInfo.ChatId, &gamblingMessageInfo.MessageDate, &gamblingMessageInfo.Emoji, &gamblingMessageInfo.EmojiValue)
-		if err == nil {
-			gamblingMessageInfo.updated = true
-			gamblingMessageInfos = append(gamblingMessageInfos, gamblingMessageInfo)
+func (gamblingMessageCache *GamblingMessageCache) A(gamblingMessageInfo GamblingMessageInfo) bool {
+	gamblingMessageCache.rwMutex.RLock()
+	defer gamblingMessageCache.rwMutex.RUnlock()
+
+	for k, _ := range gamblingMessageCache.cache {
+		if k.ChatId == gamblingMessageInfo.ChatId {
+			return false
 		}
 	}
 
-	gamblingMessageCache.rwMutex.Lock()
-	for i := range gamblingMessageInfos {
-		gamblingMessageCache.cache[gamblingMessageInfos[i].UserChatIndicator] = &gamblingMessageInfos[i]
-	}
-	gamblingMessageCache.rwMutex.Unlock()
+	return false
 }
