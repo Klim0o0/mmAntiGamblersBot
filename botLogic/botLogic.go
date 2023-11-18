@@ -56,7 +56,7 @@ func muteUser(bot *tgbotapi.BotAPI, chatId int64, userId int64) (tgbotapi.Messag
 	return bot.Send(
 		tgbotapi.RestrictChatMemberConfig{
 			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: chatId, UserID: userId},
-			//UntilDate:        time.Now().Add(time.Minute).Unix(),
+			UntilDate:        time.Now().Add(time.Minute).Unix(),
 			Permissions: &tgbotapi.ChatPermissions{
 				CanSendMessages: false,
 			}})
