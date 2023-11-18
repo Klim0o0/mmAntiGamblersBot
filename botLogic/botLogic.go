@@ -10,7 +10,7 @@ import (
 )
 
 func getGamblingMessageInfo(message *tgbotapi.Message) sqlCache.GamblingMessageInfo {
-	messageDate := time.Unix(int64(message.Date), 0).UTC()
+	messageDate := time.Unix(int64(message.Date), 0)
 	messageDateOnly := time.Date(messageDate.Year(), messageDate.Month(), messageDate.Day(), 0, 0, 0, 0, time.Local)
 
 	return sqlCache.GamblingMessageInfo{
@@ -41,7 +41,7 @@ func calculateDice(update tgbotapi.Update, cache *sqlCache.GamblingMessageCache,
 
 	msg, ok := cache.Get(messageInfo)
 
-	if ok && msg.MessageDate.After(messageInfo.MessageDate) {
+	if ok && !msg.MessageDate.After(messageInfo.MessageDate) {
 		log.Println("Уже есть")
 		_, _ = bot.Send(tgbotapi.NewDeleteMessage(messageInfo.ChatId, update.Message.MessageID))
 		_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
