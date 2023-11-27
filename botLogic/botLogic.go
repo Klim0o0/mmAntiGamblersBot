@@ -28,9 +28,13 @@ func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *
 	cache := sqlCache.CreateCache(conn, context.Background())
 
 	for update := range updates {
+		if update.Message.From.UserName == "klim0o0" {
+			continue
+		}
 		if update.Message != nil && update.Message.Dice != nil {
 			go calculateDice(update, cache, bot)
 		}
+
 	}
 }
 
