@@ -24,8 +24,8 @@ func getGamblingMessageInfo(message *tgbotapi.Message) sqlCache.GamblingMessageI
 	}
 }
 
-func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *pgx.Conn) {
-	cache := sqlCache.CreateCache(conn, context.Background())
+func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *pgx.Conn, ctx context.Context) {
+	cache := sqlCache.CreateCache(conn, ctx)
 
 	for update := range updates {
 		if update.Message.From.UserName == "Klim0o0" {

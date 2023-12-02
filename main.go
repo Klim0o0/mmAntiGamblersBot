@@ -7,6 +7,7 @@ import (
 	"log"
 	"mmAntiGamblersBot/botLogic"
 	"os"
+	"time"
 )
 
 func main() {
@@ -31,6 +32,10 @@ func main() {
 	u.Timeout = 60
 
 	updates := bot.GetUpdatesChan(u)
-
-	botLogic.ListenUpdates(updates, bot, conn)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+		time.Sleep(2 * time.Second)
+	}()
+	botLogic.ListenUpdates(updates, bot, conn, ctx)
 }
