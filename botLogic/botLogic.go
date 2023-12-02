@@ -43,16 +43,18 @@ func calculateDice(update tgbotapi.Update, cache *sqlCache.GamblingMessageCache,
 
 	messageInfo := getGamblingMessageInfo(message)
 
-	msg, ok := cache.Get(messageInfo)
+	_, ok := cache.Get(messageInfo)
 
-	if ok && !msg.MessageDate.After(messageInfo.MessageDate) {
-		log.Println("Уже есть")
-		_, _ = bot.Send(tgbotapi.NewDeleteMessage(messageInfo.ChatId, update.Message.MessageID))
-		_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
+	if !ok {
+		cache.Set(messageInfo)
 		return
 	}
 
-	cache.Set(messageInfo)
+	log.Println("Уже есть")
+	_, _ = bot.Send(tgbotapi.NewDeleteMessage(messageInfo.ChatId, update.Message.MessageID))
+	_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
+	return
+
 }
 
 func muteUser(bot *tgbotapi.BotAPI, chatId int64, userId int64) (tgbotapi.Message, error) {

@@ -62,7 +62,7 @@ func (gamblingMessageCache *GamblingMessageCache) Get(gamblingMessageInfo Gambli
 	msg, ok := gamblingMessageCache.cache[gamblingMessageInfo.UserChatIndicator]
 	gamblingMessageCache.rwMutex.RUnlock()
 
-	if ok && !msg.MessageDate.After(gamblingMessageInfo.MessageDate) {
+	if ok && msg.MessageDate == gamblingMessageInfo.MessageDate {
 		return *msg, true
 	}
 	return GamblingMessageInfo{}, false
