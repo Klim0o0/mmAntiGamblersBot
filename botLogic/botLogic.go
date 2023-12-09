@@ -2,11 +2,12 @@ package botLogic
 
 import (
 	"context"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/jackc/pgx/v5"
 	"log"
 	"mmAntiGamblersBot/sqlCache"
 	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 func getGamblingMessageInfo(message *tgbotapi.Message) sqlCache.GamblingMessageInfo {
@@ -28,9 +29,16 @@ func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *
 	cache := sqlCache.CreateCache(conn, ctx)
 
 	for update := range updates {
+		// disable on friday
+		today := time.Now().Weekday()
+		if today == time.Friday {
+			continue
+		}
+		// Klim0o0 is allowed to gamble
 		if update.Message != nil && update.Message.From != nil && update.Message.From.UserName == "Klim0o0" {
 			continue
 		}
+		// otherwise let's check for gambling
 		if update.Message != nil && update.Message.Dice != nil {
 			go calculateDice(update, cache, bot)
 		}
@@ -50,7 +58,7 @@ func calculateDice(update tgbotapi.Update, cache *sqlCache.GamblingMessageCache,
 		return
 	}
 
-	log.Println("Уже есть")
+	log.Printf("Gambling policy violation detected by user: %s\n", message.From.UserName)
 	_, _ = bot.Send(tgbotapi.NewDeleteMessage(messageInfo.ChatId, update.Message.MessageID))
 	_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
 	return

@@ -1,0 +1,11 @@
+{
+    "cSpell.words": [
+        "jackc",
+        "Klim",
+        "tgbotapi",
+        "есть"
+    ],
+    "files.watcherExclude": {
+        "**/target": true
+    }
+}
