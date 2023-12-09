@@ -2,17 +2,30 @@ package main
 
 import (
 	"context"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/jackc/pgx/v5"
 	"log"
 	"mmAntiGamblersBot/botLogic"
 	"os"
 	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5"
 )
 
 func main() {
 	argsWithoutProg := os.Args[1:]
 	connString := argsWithoutProg[0]
+
+	m, err := migrate.New("file://db/migrations", connString)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := m.Up(); err != nil {
+		log.Fatal(err)
+	}
+
 	conn, err := pgx.Connect(context.Background(), connString)
 	defer conn.Close(context.Background())
 	if err != nil {
