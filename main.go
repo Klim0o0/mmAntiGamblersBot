@@ -2,24 +2,43 @@ package main
 
 import (
 	"context"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/jackc/pgx/v5"
+	"fmt"
 	"log"
 	"mmAntiGamblersBot/botLogic"
-	"os"
+	"mmAntiGamblersBot/config"
 	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5"
 )
 
 func main() {
-	argsWithoutProg := os.Args[1:]
-	connString := argsWithoutProg[0]
+
+	config := config.LoadConfig()
+	connString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s", config.DBUsername, config.DBPassword, config.DBAddress, config.DBName, config.SSLMode)
+
+	m, err := migrate.New("file://db/migrations", connString)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := m.Up(); err != nil {
+		if err == migrate.ErrNoChange {
+			log.Println("No new migrations to apply")
+		} else {
+			log.Fatal(err)
+		}
+	}
+
 	conn, err := pgx.Connect(context.Background(), connString)
 	defer conn.Close(context.Background())
 	if err != nil {
 		log.Panic(err)
 	}
 
-	bot, err := tgbotapi.NewBotAPI(argsWithoutProg[1])
+	bot, err := tgbotapi.NewBotAPI(config.BotToken)
 	if err != nil {
 		log.Panic(err)
 	}

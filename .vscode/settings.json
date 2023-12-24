@@ -1,0 +1,14 @@
+{
+    "cSpell.words": [
+        "godotenv",
+        "jackc",
+        "joho",
+        "Klim",
+        "sslmode",
+        "tgbotapi",
+        "есть"
+    ],
+    "files.watcherExclude": {
+        "**/target": true
+    }
+}
