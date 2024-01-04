@@ -31,7 +31,7 @@ func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *
 	for update := range updates {
 		// disable on friday
 		today := time.Now().Weekday()
-		if today == time.Friday {
+		if today == time.Saturday {
 			continue
 		}
 		// Klim0o0 is allowed to gamble
