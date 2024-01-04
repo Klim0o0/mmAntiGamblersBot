@@ -18,7 +18,12 @@ func main() {
 		configuration.DBAddress, configuration.DBName, configuration.DBUsername, configuration.DBPassword, configuration.SSLMode)
 
 	conn, err := pgx.Connect(context.Background(), connString)
-	defer conn.Close(context.Background())
+	defer func(conn *pgx.Conn, ctx context.Context) {
+		err := conn.Close(ctx)
+		if err != nil {
+
+		}
+	}(conn, context.Background())
 	if err != nil {
 		log.Panic(err)
 	}
