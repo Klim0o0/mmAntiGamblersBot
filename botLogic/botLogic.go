@@ -59,6 +59,11 @@ func calculateDice(update tgbotapi.Update, cache *sqlCache.GamblingMessageCache,
 	}
 
 	log.Printf("Gambling policy violation detected by user: %s\n", message.From.UserName)
+	today := time.Now()
+	if today.Month() == time.April && today.Day() == 1 {
+		_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
+		return
+	}
 	_, _ = bot.Send(tgbotapi.NewDeleteMessage(messageInfo.ChatId, update.Message.MessageID))
 	_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
 	return
