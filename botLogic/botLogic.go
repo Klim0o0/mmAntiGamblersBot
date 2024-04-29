@@ -3,71 +3,55 @@ package botLogic
 import (
 	"context"
 	"log"
-	"mmAntiGamblersBot/sqlCache"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jackc/pgx/v5"
+	tgbotapi "github.com/sotarevid/telegram-bot-api"
 )
 
-func getGamblingMessageInfo(message *tgbotapi.Message) sqlCache.GamblingMessageInfo {
-	messageDate := time.Unix(int64(message.Date), 0)
-	messageDateOnly := time.Date(messageDate.Year(), messageDate.Month(), messageDate.Day(), 0, 0, 0, 0, time.Local)
-
-	return sqlCache.GamblingMessageInfo{
-		UserChatIndicator: sqlCache.UserChatIndicator{
-			UserId: message.From.ID,
-			ChatId: message.Chat.ID,
-			Emoji:  message.Dice.Emoji,
-		},
-		MessageDate: messageDateOnly,
-		EmojiValue:  message.Dice.Value,
-	}
-}
-
 func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *pgx.Conn, ctx context.Context) {
-	cache := sqlCache.CreateCache(conn, ctx)
-
 	for update := range updates {
-		// disable on friday
-		today := time.Now().Weekday()
-		if today == time.Saturday {
+		if update.Message == nil {
 			continue
 		}
-		// Klim0o0 is allowed to gamble
-		if update.Message != nil && update.Message.From != nil && update.Message.From.UserName == "Klim0o0" {
+
+		// Klim0o0 is allowed to shitpost
+		if update.Message.From != nil && update.Message.From.UserName == "Klim0o0" {
 			continue
 		}
-		// otherwise let's check for gambling
-		if update.Message != nil && update.Message.Dice != nil {
-			go calculateDice(update, cache, bot)
+		// otherwise let's check for violations
+		if update.Message.Dice != nil {
+			go checkGambling(update.Message, bot)
+		} else {
+			go checkBots(update.Message, bot)
 		}
 
 	}
 }
 
-func calculateDice(update tgbotapi.Update, cache *sqlCache.GamblingMessageCache, bot *tgbotapi.BotAPI) {
-	message := update.Message
-
-	messageInfo := getGamblingMessageInfo(message)
-
-	_, ok := cache.Get(messageInfo)
-
-	if !ok {
-		cache.Set(messageInfo)
+func checkGambling(message *tgbotapi.Message, bot *tgbotapi.BotAPI) {
+	if message.MessageThreadID == gamblingTopicId {
 		return
 	}
 
-	log.Printf("Gambling policy violation detected by user: %s\n", message.From.UserName)
-	today := time.Now()
-	if today.Month() == time.April && today.Day() == 1 {
-		_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
+	if message.Dice != nil {
+		log.Printf("Gambling policy violation detected by user: %s\n", message.From.UserName)
+
+		_, _ = muteUser(bot, message.Chat.ID, message.From.ID)
+	}
+}
+
+func checkBots(message *tgbotapi.Message, bot *tgbotapi.BotAPI) {
+	if message.MessageThreadID == botsTopicId {
 		return
 	}
-	_, _ = bot.Send(tgbotapi.NewDeleteMessage(messageInfo.ChatId, update.Message.MessageID))
-	_, _ = muteUser(bot, messageInfo.ChatId, messageInfo.UserId)
-	return
 
+	if message.From.IsBot || message.IsCommand() || message.ViaBot != nil {
+		log.Printf("Bot policy violation detected by user: %s\n", message.From.UserName)
+
+		_, _ = muteUser(bot, message.Chat.ID, message.From.ID)
+		return
+	}
 }
 
 func muteUser(bot *tgbotapi.BotAPI, chatId int64, userId int64) (tgbotapi.Message, error) {

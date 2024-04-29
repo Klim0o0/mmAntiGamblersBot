@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/jackc/pgx/v5"
 	"log"
 	"mmAntiGamblersBot/botLogic"
 	"mmAntiGamblersBot/config"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	tgbotapi "github.com/sotarevid/telegram-bot-api"
 )
 
 func main() {
