@@ -38,7 +38,7 @@ func checkGambling(message *tgbotapi.Message, bot *tgbotapi.BotAPI) {
 		log.Printf("Gambling policy violation detected by user: %s\n", message.From.UserName)
 
 		_, _ = muteUser(bot, message.Chat.ID, message.From.ID)
-		_, _ = bot.Send(tgbotapi.NewDeleteMessage(message.From.ID, message.MessageID))
+		_, _ = bot.Send(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID))
 	}
 }
 
@@ -48,10 +48,13 @@ func checkBots(message *tgbotapi.Message, bot *tgbotapi.BotAPI) {
 	}
 
 	if message.From.IsBot || message.IsCommand() || message.ViaBot != nil {
-		log.Printf("Bot policy violation detected by user: %s\n", message.From.UserName)
+		if !message.From.IsBot {
+			log.Printf("Bot policy violation detected by user: %s\n", message.From.UserName)
 
-		_, _ = muteUser(bot, message.Chat.ID, message.From.ID)
-		_, _ = bot.Send(tgbotapi.NewDeleteMessage(message.From.ID, message.MessageID))
+			_, _ = muteUser(bot, message.Chat.ID, message.From.ID)
+		}
+
+		_, _ = bot.Send(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID))
 	}
 }
 
