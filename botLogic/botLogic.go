@@ -5,11 +5,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	tgbotapi "github.com/sotarevid/telegram-bot-api"
 )
 
-func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, conn *pgx.Conn, ctx context.Context) {
+func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, ctx context.Context) {
 	for update := range updates {
 		if update.Message == nil {
 			continue
