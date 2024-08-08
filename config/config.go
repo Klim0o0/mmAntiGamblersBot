@@ -8,12 +8,8 @@ import (
 )
 
 type Config struct {
-	DBUsername string
-	DBPassword string
-	DBAddress  string
-	DBName     string
-	SSLMode    string
-	BotToken   string
+	SSLMode  string
+	BotToken string
 }
 
 func LoadConfig() Config {
@@ -23,12 +19,8 @@ func LoadConfig() Config {
 	}
 
 	config := Config{
-		DBUsername: getEnv("DB_USERNAME", ""),
-		DBPassword: getEnv("DB_PASSWORD", ""),
-		DBAddress:  getEnv("DB_ADDRESS", ""),
-		DBName:     getEnv("DB_NAME", ""),
-		SSLMode:    getEnv("SSL_MODE", "disable"),
-		BotToken:   getEnv("BOT_TOKEN", ""),
+		SSLMode:  getEnv("SSL_MODE", "disable"),
+		BotToken: getEnv("BOT_TOKEN", ""),
 	}
 
 	return config
