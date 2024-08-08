@@ -54,7 +54,7 @@ func checkBots(message *tgbotapi.Message, bot *tgbotapi.BotAPI) {
 	}
 
 	if message.From.IsBot || message.IsCommand() || message.ViaBot != nil {
-		if slices.Contains(whitelist, message.ViaBot.UserName) {
+		if message.ViaBot != nil && slices.Contains(whitelist, message.ViaBot.UserName) {
 			return
 		}
 
