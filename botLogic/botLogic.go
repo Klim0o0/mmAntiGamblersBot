@@ -3,6 +3,7 @@ package botLogic
 import (
 	"context"
 	"log"
+	"slices"
 	"time"
 
 	tgbotapi "github.com/sotarevid/telegram-bot-api"
@@ -12,6 +13,12 @@ func ListenUpdates(updates tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, ctx co
 	for update := range updates {
 		if update.Message == nil {
 			continue
+		}
+
+		//send a sticker on user join
+		if update.Message.NewChatMembers != nil {
+			var sticker = tgbotapi.NewSticker(update.Message.Chat.ID, tgbotapi.FileID(joinStickerId))
+			bot.Send(sticker)
 		}
 
 		// Klim0o0 is allowed to shitpost
@@ -47,6 +54,10 @@ func checkBots(message *tgbotapi.Message, bot *tgbotapi.BotAPI) {
 	}
 
 	if message.From.IsBot || message.IsCommand() || message.ViaBot != nil {
+		if slices.Contains(whitelist, message.ViaBot.UserName) {
+			return
+		}
+
 		if !message.From.IsBot {
 			log.Printf("Bot policy violation detected by user: %s\n", message.From.UserName)
 
